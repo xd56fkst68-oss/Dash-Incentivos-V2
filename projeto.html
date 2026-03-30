@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Intelligence Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Syne:wght@700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+
+<body>
+
+    <!-- ═══════════════ LOADING ═══════════════ -->
+    <div id="stateLoading" class="state-wrap">
+        <div class="spinner"></div>
+        <p class="state-title">Carregando dados...</p>
+        <p class="state-desc">Buscando e consolidando todas as abas da planilha. Aguarde um momento.</p>
+    </div>
+
+    <!-- ═══════════════ ERROR ═══════════════ -->
+    <div id="stateError" class="state-wrap" style="display:none">
+        <div style="font-size:52px">⚠️</div>
+        <p class="state-title" id="errTitle">Falha ao carregar</p>
+        <p class="state-desc" id="errDesc">Verifique os links CSV e as permissões de publicação da planilha.</p>
+        <button class="btn btn-ghost" style="background:var(--accent);color:#fff;margin-top:8px"
+            onclick="loadAllData()">↺
+            Tentar novamente</button>
+    </div>
+
+    <!-- ═══════════════ DASHBOARD ═══════════════ -->
+    <div id="dashboard" style="display:none">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <div class="header-logo">📊</div>
+                <div class="header-brand">
+                    <div class="header-title">QA Intelligence</div>
+                    <div class="header-sub">Painel de Indicadores de Qualidade · Tempo Real</div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="ts-block">
+                    <div class="ts-label">Última atualização</div>
+                    <div class="ts-value" id="tsEl">—</div>
+                </div>
+                <button class="btn btn-ghost" onclick="loadAllData()">
+                    <span id="refreshIco">↺</span> Atualizar
+                </button>
+                <button class="btn btn-export" onclick="exportCSV()">
+                    ⬇ Exportar CSV
+                </button>
+            </div>
+        </header>
+
+        <div class="main">
+
+            <div id="projectPagesWrap" class="project-pages" style="display:none">
+                <div class="project-pages-title">Páginas por Projeto</div>
+                <div id="projectPagesNav" class="project-pages-nav"></div>
+            </div>
+
+            <!-- FILTERS -->
+            <div class="filters-wrap">
+                <div class="fg" style="max-width:190px">
+                    <span class="fg-label">🔍 Busca por Chassi</span>
+                    <input type="text" id="fChassi" class="fi" placeholder="Ex: 9BGKS48U..." oninput="applyFilters()">
+                </div>
+
+                <div class="fdiv"></div>
+
+                <div class="fg" style="max-width:148px">
+                    <span class="fg-label">📅 Data Calibração</span>
+                    <input type="date" id="fDateCal" class="fi" onchange="applyFilters()">
+                </div>
+
+                <div class="fg" style="max-width:148px">
+                    <span class="fg-label">📅 Auditoria - início</span>
+                    <input type="date" id="fDateS" class="fi" onchange="applyFilters()">
+                </div>
+                <div class="fg" style="max-width:148px">
+                    <span class="fg-label">📅 Auditoria - fim</span>
+                    <input type="date" id="fDateE" class="fi" onchange="applyFilters()">
+                </div>
+
+                <div class="fdiv"></div>
+
+                <div class="fg" style="max-width:160px">
+                    <span class="fg-label">🏭 Projeto</span>
+                    <div class="ms-wrap">
+                        <div class="ms-display" id="msDisplay" onclick="toggleMS()">
+                            <span id="msText">Todos</span>
+                            <span class="ms-arrow">▾</span>
+                        </div>
+                        <div class="ms-dd" id="msDD"></div>
+                    </div>
+                </div>
+
+                <div class="fg" style="max-width:175px">
+                    <span class="fg-label">👤 Auditor</span>
+                    <select id="fAuditor" class="fi" onchange="applyFilters()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+
+                <div class="fg" style="max-width:220px">
+                    <span class="fg-label">⚠️ Gravidade / Impacto</span>
+                    <select id="fGravidade" class="fi" onchange="applyFilters()">
+                        <option value="">Todos</option>
+                        <option value="passivel">Passível de Ajuste</option>
+                        <option value="grave">Grave (Prejuízo Financeiro)</option>
+                        <option value="omoda">AVALIAÇÃO OMODA</option>
+                        <option value="naoClassificado">Não Classificado</option>
+                    </select>
+                </div>
+
+                <div class="fdiv"></div>
+
+                <button class="btn-reset" onclick="resetFilters()">✕ Limpar filtros</button>
+            </div>
+
+            <!-- KPIs -->
+            <div class="kpi-grid">
+
+                <div class="kpi-card">
+                    <div class="kpi-accent accent-blue"></div>
+                    <div class="kpi-icon icon-blue">📋</div>
+                    <div class="kpi-lbl">Volume Total Avaliado</div>
+                    <div class="kpi-val" id="kTotal">—</div>
+                    <div class="kpi-chip chip-blue">registros auditados</div>
+                </div>
+
+                <div class="kpi-card" id="kQualCard">
+                    <div class="kpi-accent" id="kQualAccent"></div>
+                    <div class="kpi-icon" id="kQualIcon">✅</div>
+                    <div class="kpi-lbl">% Qualidade Geral</div>
+                    <div class="kpi-val" id="kQual">—</div>
+                    <div class="kpi-chip" id="kQualChip">—</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-accent accent-red"></div>
+                    <div class="kpi-icon icon-red">❌</div>
+                    <div class="kpi-lbl">Índice de Inconsistência</div>
+                    <div class="kpi-val" id="kNao">—</div>
+                    <div class="kpi-chip chip-red">não conformes</div>
+                </div>
+
+                <div class="kpi-card" style="display: none;">
+                    <div class="kpi-accent accent-amber"></div>
+                    <div class="kpi-icon icon-amber">⏱</div>
+                    <div class="kpi-icon icon-amber">SLA Médio de Auditoria</div>
+                    <div class="kpi-val" id="kSla">—</div>
+                    <div class="kpi-chip chip-amber">dias (calibração → auditoria)</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-accent accent-purple"></div>
+                    <div class="kpi-icon icon-purple">🏆</div>
+                    <div class="kpi-lbl">Auditor Destaque</div>
+                    <div class="kpi-val sm" id="kAud">—</div>
+                    <div class="kpi-chip chip-blue" id="kAudChip">—</div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-accent accent-green"></div>
+                    <div class="kpi-icon icon-green">✅</div>
+                    <div class="kpi-lbl">Volume de Conformes</div>
+                    <div class="kpi-val" id="kConformes">—</div>
+                    <div class="kpi-chip chip-green">auditorias aprovadas</div>
+                </div>
+
+            </div>
+
+            <!-- ROW 1 : Gauge + Tendência -->
+            <div class="row row-gauge-trend">
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Indicador de Qualidade</div>
+                            <div class="ch-sub">Velocímetro vs Meta ≥ 95%</div>
+                        </div>
+                        <div class="ch-badge" id="gaugeBadge" style="background:#EDE9FE;color:#6D28D9">—</div>
+                    </div>
+                    <div class="gauge-wrap">
+                        <div class="gauge-canvas-wrap">
+                            <canvas id="gaugeChart"></canvas>
+                            <div class="gauge-overlay">
+                                <div class="gauge-pct" id="gaugePct">—</div>
+                                <div class="gauge-meta-lbl">Meta: 95%</div>
+                            </div>
+                        </div>
+                        <div class="gauge-ticks">
+                            <span class="gauge-tick">0%</span>
+                            <span class="gauge-tick">50%</span>
+                            <span class="gauge-tick">100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Evolução Temporal da Qualidade</div>
+                            <div class="ch-sub">% Qualidade diária vs linha de meta (95%)</div>
+                        </div>
+                        <div id="trendLegend" style="flex: 1; text-align: center; display: flex; align-items: center; justify-content: center;"></div>
+                        <div class="ch-badge" id="trendBadge"
+                            style="background:var(--accent-light);color:var(--accent)">—
+                        </div>
+                    </div>
+                    <canvas id="trendChart"></canvas>
+                </div>
+
+            </div>
+
+            <!-- ROW 2 : Status por Projeto + Volume por Auditor -->
+            <div class="row row-2col">
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Status por Projeto</div>
+                            <div class="ch-sub">Conformes vs Não Conformes por montadora</div>
+                        </div>
+                    </div>
+                    <canvas id="projectChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Volume por Auditor</div>
+                            <div class="ch-sub">Produtividade e conformidade individual da equipe</div>
+                        </div>
+                    </div>
+                    <canvas id="auditorChart"></canvas>
+                </div>
+
+            </div>
+
+            <!-- ROW 3 : Gravidade / Impacto + Pareto -->
+            <div class="row row-2col">
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Não Conformes por Gravidade / Impacto</div>
+                            <div class="ch-sub">Distribuição em rosca das classificações de Gravidade / Impacto</div>
+                        </div>
+                    </div>
+                    <canvas id="gravidadeImpactoChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Pareto de Erros — Top Motivos</div>
+                            <div class="ch-sub">Termos mais frequentes nas ocorrências registradas</div>
+                        </div>
+                    </div>
+                    <canvas id="paretoChart"></canvas>
+                </div>
+
+            </div>
+
+            <!-- ROW 4 : Gravidade / Impacto por Auditor -->
+            <div class="row row-1col">
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Gravidade / Impacto por Auditor</div>
+                            <div class="ch-sub">Quantidade de não conformes classificados por auditor</div>
+                        </div>
+                    </div>
+                    <canvas id="gravidadeAuditorChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ROW 5 : Gravidade / Impacto por Observação -->
+            <div class="row row-1col">
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Gravidade / Impacto por Observação</div>
+                            <div class="ch-sub">Observações mais recorrentes separadas por classificação</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <span id="auditorDrillBadge" class="drill-badge" style="display:none">
+                                <span class="drill-text"></span>
+                                <button class="drill-clear" onclick="clearAuditorDrill()" title="Limpar filtro">×</button>
+                            </span>
+                            <select id="topObsGravidade" class="fi" style="max-width:180px;height:30px" onchange="onTopObsGravidadeChange()">
+                                <option value="all" selected>Todas categorias</option>
+                                <option value="passivel">Passível de Ajuste</option>
+                                <option value="grave">Grave</option>
+                                <option value="omoda">AVALIAÇÃO OMODA</option>
+                                <option value="naoClassificado">Não Classificado</option>
+                            </select>
+                            <select id="topObsLimit" class="fi" style="max-width:110px;height:30px" onchange="onTopObsLimitChange()">
+                                <option value="5">Top 5</option>
+                                <option value="10" selected>Top 10</option>
+                                <option value="15">Top 15</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="gravidadeObsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ROW 6 : Project Ranking (penúltimo) -->
+            <div class="row row-1col">
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Ranking de Projetos por % Qualidade</div>
+                            <div class="ch-sub">Projetos ordenados do melhor para o pior</div>
+                        </div>
+                    </div>
+                    <canvas id="projectRankingChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ROW 7 : Auditor Evolution (último) -->
+            <div class="row row-1col">
+                <div class="chart-card">
+                    <div class="ch-head">
+                        <div>
+                            <div class="ch-title">Evolução por Auditor ao Longo do Tempo</div>
+                            <div class="ch-sub">% Qualidade de cada auditor mês a mês</div>
+                        </div>
+                        <select id="fAuditorEvolution" class="fi" style="max-width:200px;height:30px" onchange="onAuditorEvolutionChange()">
+                            <option value="all">Todos os auditores</option>
+                        </select>
+                    </div>
+                    <canvas id="auditorEvolutionChart"></canvas>
+                </div>
+            </div>
+
+        </div><!-- /main -->
+
+        <div class="footer">
+            QA Intelligence Dashboard &nbsp;·&nbsp; Dados em tempo real via Google Sheets &nbsp;·&nbsp; v2.0
+        </div>
+
+    </div><!-- /dashboard -->
+
+    <!-- BIBLIOTECAS EXTERNAS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+
+    <!-- SCRIPTS LOCAIS -->
+    <script src="js/main.js"></script>
+
+
+</body>
+
+</html>
