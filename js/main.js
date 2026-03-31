@@ -7,6 +7,7 @@ const CSV_URLS = [
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1819995490&single=true&output=csv',
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=2022041798&single=true&output=csv',
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1117196734&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1844285283&single=true&output=csv',
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -62,9 +63,10 @@ function findCol(hmap, key) {
     for (const alias of (COL[key] || [key])) {
         if (hmap[alias] !== undefined) return hmap[alias];
     }
-    // fuzzy: check if any header contains the alias
+    // Fuzzy match only in one direction and ignore empty/very short headers.
+    // This avoids accidental matches like alias.includes('') => true.
     for (const alias of (COL[key] || [key])) {
-        const found = Object.keys(hmap).find(h => h.includes(alias) || alias.includes(h));
+        const found = Object.keys(hmap).find(h => h && h.length >= 3 && h.includes(alias));
         if (found !== undefined) return hmap[found];
     }
     return undefined;
@@ -74,6 +76,35 @@ function buildHmap(headers) {
     const m = {};
     headers.forEach((h, i) => { m[normKey(h)] = i; });
     return m;
+}
+
+function scoreHeaderRow(row) {
+    const hmap = buildHmap(row || []);
+    let score = 0;
+    if (findCol(hmap, 'projeto') !== undefined) score++;
+    if (findCol(hmap, 'dataCal') !== undefined) score++;
+    if (findCol(hmap, 'dataAud') !== undefined) score++;
+    if (findCol(hmap, 'chassi') !== undefined) score++;
+    if (findCol(hmap, 'auditor') !== undefined) score++;
+    if (findCol(hmap, 'correta') !== undefined) score += 2;
+    return score;
+}
+
+function findHeaderIndex(data) {
+    // Some tabs have grouped titles on line 1 and real headers on line 2.
+    const maxRowsToCheck = Math.min(data.length, 6);
+    let bestIdx = 0;
+    let bestScore = -1;
+
+    for (let i = 0; i < maxRowsToCheck; i++) {
+        const score = scoreHeaderRow(data[i]);
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdx = i;
+        }
+    }
+
+    return bestIdx;
 }
 
 function getCell(raw, hmap, key) {
@@ -116,7 +147,9 @@ function normalizeRow(raw, hmap) {
     const corr = normCorreta(getCell(raw, hmap, 'correta'));
     if (!corr) return null;
     const projeto = getCell(raw, hmap, 'projeto');
-    if (!projeto) return null;
+    const projetoKey = normKey(projeto);
+    // Guard against misaligned columns producing boolean-like values as project.
+    if (!projeto || ['sim', 'nao', 's', 'n'].includes(projetoKey)) return null;
     const dataCal = parseDate(getCell(raw, hmap, 'dataCal'));
     const dataAud = parseDate(getCell(raw, hmap, 'dataAud'));
     const chassi = getCell(raw, hmap, 'chassi');
@@ -169,8 +202,9 @@ async function loadAllData() {
             const text = await fetchOne(url);
             const data = parseText(text);
             if (data.length < 2) { erros.push('Aba vazia'); continue; }
-            const hmap = buildHmap(data[0]);
-            for (let i = 1; i < data.length; i++) {
+            const headerIndex = findHeaderIndex(data);
+            const hmap = buildHmap(data[headerIndex]);
+            for (let i = headerIndex + 1; i < data.length; i++) {
                 const row = normalizeRow(data[i], hmap);
                 if (row) allRows.push(row);
             }
@@ -451,11 +485,51 @@ const C = {
 
 const CHART_FONT = { family: C.font, size: 12, weight: '500' };
 
+const CHART_CANVAS = {
+    gauge: 'gaugeChart',
+    trend: 'trendChart',
+    project: 'projectChart',
+    gravidadeImpacto: 'gravidadeImpactoChart',
+    gravidadeProjeto: 'gravidadeProjetoChart',
+    gravidadeAuditor: 'gravidadeAuditorChart',
+    gravidadeObs: 'gravidadeObsChart',
+    pareto: 'paretoChart',
+    auditor: 'auditorChart',
+    auditorEvolution: 'auditorEvolutionChart',
+    projectRanking: 'projectRankingChart',
+};
+
 // Register DataLabels plugin
 Chart.register(ChartDataLabels);
 
+function getParsedY(ctx) {
+    if (ctx && ctx.parsed && typeof ctx.parsed.y === 'number') return ctx.parsed.y;
+    if (ctx && typeof ctx.raw === 'number') return ctx.raw;
+    return 0;
+}
+
+function getParsedX(ctx) {
+    if (ctx && ctx.parsed && typeof ctx.parsed.x === 'number') return ctx.parsed.x;
+    if (ctx && typeof ctx.raw === 'number') return ctx.raw;
+    return 0;
+}
+
 function destroyC(id) {
-    if (charts[id]) { try { charts[id].destroy(); } catch (e) { } delete charts[id]; }
+    if (charts[id]) {
+        try { charts[id].destroy(); } catch (e) { }
+        delete charts[id];
+    }
+
+    // Also destroy any chart still attached to the canvas, even if it is not
+    // referenced in the charts map (prevents "Canvas is already in use").
+    const canvasId = CHART_CANVAS[id];
+    if (!canvasId) return;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const existing = Chart.getChart(canvas);
+    if (existing) {
+        try { existing.destroy(); } catch (e) { }
+    }
 }
 
 function renderCharts() {
@@ -621,8 +695,8 @@ function renderTrend() {
                     tension: 0.42,
                     pointRadius: periodLabels.length > 60 ? 2 : 4,
                     pointHoverRadius: 7,
-                    pointBackgroundColor: (ctx) => ctx.parsed.y >= 95 ? '#10B981' : C.blue,
-                    pointBorderColor: (ctx) => ctx.parsed.y >= 95 ? '#10B981' : C.blue,
+                    pointBackgroundColor: (ctx) => getParsedY(ctx) >= 95 ? '#10B981' : C.blue,
+                    pointBorderColor: (ctx) => getParsedY(ctx) >= 95 ? '#10B981' : C.blue,
                     borderWidth: 2.5,
                     order: 1,
                 },
@@ -672,7 +746,7 @@ function renderTrend() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%`,
+                        label: ctx => `${ctx.dataset.label}: ${getParsedY(ctx)}%`,
                         afterLabel: ctx => {
                             if (ctx.datasetIndex === 0 && periodLabels[ctx.dataIndex]) {
                                 const d = byPeriod[periodLabels[ctx.dataIndex]];
@@ -836,8 +910,9 @@ function renderProject() {
                     callbacks: {
                         label: ctx => {
                             const tot = simD[ctx.dataIndex] + naoD[ctx.dataIndex];
-                            const p = tot > 0 ? (ctx.parsed.y / tot * 100).toFixed(1) : 0;
-                            return ` ${ctx.dataset.label}: ${ctx.parsed.y}  (${p}%)`;
+                            const y = getParsedY(ctx);
+                            const p = tot > 0 ? (y / tot * 100).toFixed(1) : 0;
+                            return ` ${ctx.dataset.label}: ${y}  (${p}%)`;
                         }
                     }
                 }
@@ -999,7 +1074,7 @@ function renderGravidadePorProjeto() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}`,
+                        label: (ctx) => ` ${ctx.dataset.label}: ${getParsedY(ctx)}`,
                         afterBody: (items) => {
                             if (!items || !items.length) return '';
                             const idx = items[0].dataIndex;
@@ -1157,7 +1232,7 @@ function renderGravidadePorAuditor() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}`,
+                        label: (ctx) => ` ${ctx.dataset.label}: ${getParsedY(ctx)}`,
                         afterBody: (items) => {
                             if (!items || !items.length) return '';
                             const idx = items[0].dataIndex;
@@ -1310,7 +1385,7 @@ function renderGravidadePorObservacao() {
                             if (!items || !items.length) return '';
                             return topObs[items[0].dataIndex]?.[0] || '';
                         },
-                        label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.x}`,
+                        label: (ctx) => ` ${ctx.dataset.label}: ${getParsedX(ctx)}`,
                         afterBody: (items) => {
                             if (!items || !items.length) return '';
                             const idx = items[0].dataIndex;
@@ -1481,8 +1556,9 @@ function renderAuditor() {
                         label: ctx => {
                             const a = auds[ctx.dataIndex];
                             const tot = amap[a].sim + amap[a].nao;
-                            const p = tot > 0 ? (ctx.parsed.y / tot * 100).toFixed(1) : 0;
-                            return ` ${ctx.dataset.label}: ${ctx.parsed.y}  (${p}%)`;
+                            const y = getParsedY(ctx);
+                            const p = tot > 0 ? (y / tot * 100).toFixed(1) : 0;
+                            return ` ${ctx.dataset.label}: ${y}  (${p}%)`;
                         }
                     }
                 }
@@ -1609,7 +1685,7 @@ function renderAuditorEvolution() {
                 tooltip: {
                     callbacks: {
                         label: ctx => {
-                            const value = ctx.parsed.y;
+                            const value = getParsedY(ctx);
                             const auditor = ctx.dataset.label;
                             const month = allMonths[ctx.dataIndex];
                             const d = auditorData[auditor][month];
