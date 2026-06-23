@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QA Intelligence Dashboard</title>
+    <title>QA Reauditoria de Incentivos Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Syne:wght@700;800&display=swap"
@@ -40,7 +40,7 @@
             <div class="header-left">
                 <div class="header-logo">📊</div>
                 <div class="header-brand">
-                    <div class="header-title">QA Intelligence</div>
+                    <div class="header-title">QA Reauditoria de Incentivos</div>
                     <div class="header-sub">Painel de Indicadores de Qualidade · Tempo Real</div>
                 </div>
             </div>
@@ -75,8 +75,12 @@
                 <div class="fdiv"></div>
 
                 <div class="fg" style="max-width:148px">
-                    <span class="fg-label">📅 Data Calibração</span>
-                    <input type="date" id="fDateCal" class="fi" onchange="applyFilters()">
+                    <span class="fg-label">📅 Calibração - início</span>
+                    <input type="date" id="fDateCalS" class="fi" onchange="applyFilters()">
+                </div>
+                <div class="fg" style="max-width:148px">
+                    <span class="fg-label">📅 Calibração - fim</span>
+                    <input type="date" id="fDateCalE" class="fi" onchange="applyFilters()">
                 </div>
 
                 <div class="fg" style="max-width:148px">
@@ -132,7 +136,7 @@
                     <div class="kpi-icon icon-blue">📋</div>
                     <div class="kpi-lbl">Volume Total Avaliado</div>
                     <div class="kpi-val" id="kTotal">—</div>
-                    <div class="kpi-chip chip-blue">registros auditados</div>
+                    <div class="kpi-chip chip-blue">registros reauditados</div>
                 </div>
 
                 <div class="kpi-card" id="kQualCard">
@@ -346,7 +350,7 @@
         </div><!-- /main -->
 
         <div class="footer">
-            QA Intelligence Dashboard &nbsp;·&nbsp; Dados em tempo real via Google Sheets &nbsp;·&nbsp; v2.0
+            QA Reauditoria de Incentivos Dashboard &nbsp;·&nbsp; Dados em tempo real via Google Sheets &nbsp;·&nbsp; v2.0
         </div>
 
     </div><!-- /dashboard -->
@@ -359,11 +363,6 @@
 
     <!-- SCRIPTS LOCAIS -->
     <script src="js/main.js"></script>
-
-
-</body>
-
-</html>
 
 
 </body>

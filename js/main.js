@@ -2,11 +2,11 @@
    CONFIGURAÇÃO — URLs das abas do Google Sheets (CSV)
    ═══════════════════════════════════════════════════════════ */
 const CSV_URLS = [
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=352996843&single=true&output=csv',
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1439413758&single=true&output=csv',
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1819995490&single=true&output=csv',
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=2022041798&single=true&output=csv',
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1117196734&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1625284859&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1458435869&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1014092020&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=576130513&single=true&output=csv',
+    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1871236843&single=true&output=csv',
     'https://docs.google.com/spreadsheets/d/e/2PACX-1vRy08WRcxagknb0ucDbTkvUyUW7hjqR2uAyHtaSqyZpIJIq8ejzTL-1F2ZC0M4spg8XUQIxBqNz38s_/pub?gid=1844285283&single=true&output=csv',
 ];
 
@@ -74,7 +74,11 @@ function findCol(hmap, key) {
 
 function buildHmap(headers) {
     const m = {};
-    headers.forEach((h, i) => { m[normKey(h)] = i; });
+    headers.forEach((h, i) => {
+        const key = normKey(h);
+        // Keep the first occurrence when headers repeat (e.g., multiple "Chassi" columns).
+        if (m[key] === undefined) m[key] = i;
+    });
     return m;
 }
 
@@ -142,6 +146,7 @@ let auditorDrillAuditor = null;
 let auditorDrillGravidade = null;
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const FORCED_PROJECT = (URL_PARAMS.get('projeto') || '').trim();
+const IS_PROJECT_PAGE = window.location.pathname.includes('projeto.html');
 
 function normalizeRow(raw, hmap) {
     const corr = normCorreta(getCell(raw, hmap, 'correta'));
@@ -269,7 +274,7 @@ function renderProjectPagesNav() {
     wrap.style.display = 'block';
 
     if (FORCED_PROJECT) {
-        document.title = `QA Intelligence - ${FORCED_PROJECT}`;
+        document.title = `QA Reauditoria de Incentivos - ${FORCED_PROJECT}`;
         const sub = document.querySelector('.header-sub');
         if (sub) sub.textContent = `Painel de Indicadores de Qualidade · Projeto: ${FORCED_PROJECT}`;
     }
@@ -322,11 +327,18 @@ function populateFilters() {
         ].join('');
     }
 
-    // Date range
-    const dates = allRows.map(r => r.isoAud).filter(Boolean).sort();
-    if (dates.length) {
-        document.getElementById('fDateS').value = dates[0];
-        document.getElementById('fDateE').value = dates[dates.length - 1];
+    // Auditoria date range
+    const datesAud = allRows.map(r => r.isoAud).filter(Boolean).sort();
+    if (datesAud.length) {
+        document.getElementById('fDateS').value = datesAud[0];
+        document.getElementById('fDateE').value = datesAud[datesAud.length - 1];
+    }
+
+    // Calibração date range
+    const datesCal = allRows.map(r => r.isoCal).filter(Boolean).sort();
+    if (datesCal.length) {
+        document.getElementById('fDateCalS').value = datesCal[0];
+        document.getElementById('fDateCalE').value = datesCal[datesCal.length - 1];
     }
 }
 
@@ -369,13 +381,21 @@ function resetFilters() {
     document.getElementById('fChassi').value = '';
     document.getElementById('fAuditor').value = '';
     document.getElementById('fGravidade').value = '';
-    const dates = allRows.map(r => r.isoAud).filter(Boolean).sort();
-    if (dates.length) {
-        document.getElementById('fDateS').value = dates[0];
-        document.getElementById('fDateE').value = dates[dates.length - 1];
+    const datesAud = allRows.map(r => r.isoAud).filter(Boolean).sort();
+    if (datesAud.length) {
+        document.getElementById('fDateS').value = datesAud[0];
+        document.getElementById('fDateE').value = datesAud[datesAud.length - 1];
     } else {
         document.getElementById('fDateS').value = '';
         document.getElementById('fDateE').value = '';
+    }
+    const datesCal = allRows.map(r => r.isoCal).filter(Boolean).sort();
+    if (datesCal.length) {
+        document.getElementById('fDateCalS').value = datesCal[0];
+        document.getElementById('fDateCalE').value = datesCal[datesCal.length - 1];
+    } else {
+        document.getElementById('fDateCalS').value = '';
+        document.getElementById('fDateCalE').value = '';
     }
     const checks = document.querySelectorAll('#msDD input[type=checkbox]');
     if (FORCED_PROJECT) {
@@ -394,7 +414,8 @@ function resetFilters() {
 
 function applyFilters() {
     const chassi = document.getElementById('fChassi').value.trim().toLowerCase();
-    const dateCal = document.getElementById('fDateCal').value;
+    const dateCalS = document.getElementById('fDateCalS').value;
+    const dateCalE = document.getElementById('fDateCalE').value;
     const dateS = document.getElementById('fDateS').value;
     const dateE = document.getElementById('fDateE').value;
     const auditor = document.getElementById('fAuditor').value;
@@ -403,7 +424,8 @@ function applyFilters() {
     filteredRows = allRows.filter(r => {
         if (FORCED_PROJECT && r.projeto !== FORCED_PROJECT) return false;
         if (chassi && !r.chassi.toLowerCase().includes(chassi)) return false;
-        if (dateCal && r.isoCal && r.isoCal !== dateCal) return false;
+        if (dateCalS && r.isoCal && r.isoCal < dateCalS) return false;
+        if (dateCalE && r.isoCal && r.isoCal > dateCalE) return false;
         if (dateS && r.isoAud && r.isoAud < dateS) return false;
         if (dateE && r.isoAud && r.isoAud > dateE) return false;
         if (selectedProjects.size > 0 && !selectedProjects.has(r.projeto)) return false;
@@ -537,7 +559,7 @@ function renderCharts() {
     renderTrend();
     renderProject();
     renderGravidadeImpacto();
-    if (FORCED_PROJECT) {
+    if (FORCED_PROJECT || IS_PROJECT_PAGE) {
         renderGravidadePorAuditor();
     } else {
         renderGravidadePorProjeto();
@@ -818,7 +840,9 @@ function renderProjectRanking() {
                 backgroundColor: colors,
                 borderColor: colors,
                 borderWidth: 1,
-                borderRadius: 5
+                borderRadius: 5,
+                categoryPercentage: 0.62,
+                barPercentage: 0.72
             }]
         },
         options: {
@@ -827,7 +851,7 @@ function renderProjectRanking() {
             maintainAspectRatio: true,
             aspectRatio: 2.5,
             layout: {
-                padding: { top: 20, bottom: 20, left: 20, right: 20 }
+                padding: { top: 20, bottom: 20, left: 20, right: 34 }
             },
             plugins: {
                 legend: {
@@ -838,10 +862,10 @@ function renderProjectRanking() {
                 datalabels: {
                     display: true,
                     clip: false,
-                    font: { ...CHART_FONT, weight: '600', size: 11 },
+                    font: { ...CHART_FONT, weight: '700', size: 12 },
                     color: '#000',
                     formatter: (value) => value + '%',
-                    offset: 6,
+                    offset: 8,
                     anchor: 'end',
                     align: 'right'
                 },
@@ -857,7 +881,7 @@ function renderProjectRanking() {
             scales: {
                 x: {
                     beginAtZero: true,
-                    max: 100,
+                    max: 104,
                     grid: { color: C.grid },
                     ticks: {
                         font: CHART_FONT,
@@ -901,7 +925,7 @@ function renderProject() {
                     display: true,
                     font: { ...CHART_FONT, weight: '600', size: 11 },
                     color: '#000',
-                    formatter: (value) => value,
+                    formatter: (value) => value > 0 ? value : '',
                     offset: 4,
                     anchor: 'center',
                     align: 'center'
@@ -1011,7 +1035,10 @@ function renderGravidadePorProjeto() {
     const omodaData = projetos.map(p => map[p].omoda);
     const naoClassifData = projetos.map(p => map[p].naoClassificado);
 
-    const ctx = document.getElementById('gravidadeProjetoChart').getContext('2d');
+    const el = document.getElementById('gravidadeProjetoChart');
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    if (!ctx) return;
     charts.gravidadeProjeto = new Chart(ctx, {
         type: 'bar',
         data: {
